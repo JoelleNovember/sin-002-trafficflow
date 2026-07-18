@@ -2,20 +2,32 @@
 
 ## Overview
 
-Topic: `congestion-topic`
+Part of the [TrafficFlow](../README.md) project. Holds the ActiveMQ broker shared
+by the services below — not a service itself, so it has no port of its own. Two
+independent integration points share this one broker:
+
+### Topic: `congestion-topic`
 
 Routing Service becomes aware of congestion changes via an ActiveMQ Topic instead of querying Congestion Service directly.
 
-Part of the [TrafficFlow](../README.md) project. Holds the ActiveMQ broker shared
-by the services below — not a service itself, so it has no port of its own.
-
 - Producer: `congestion-service` (`../congestion-service`)
-- Consumer(s): routing-service
+- Consumer(s): `routing-service` (`../routing-service`)
 
 Broker URL and topic name are shared via a common `co.wethinkcode.trafficflow.mq.MqConfig` class
 (`BROKER_URL`, `TOPIC`). It's identical in every participating service's own source
 tree — each service here is an independent Maven project with no shared parent pom,
 so the common package is duplicated rather than imported from one place.
+
+### Queue: `intersection-heartbeat-queue`
+
+Intersection Watchdog notices when Intersection Service goes down by watching for
+missed heartbeats / dead-lettered messages instead of polling its `/health` endpoint.
+
+- Producer: `intersection-service` (`../intersection-service`)
+- Consumer(s): `intersection-watchdog` (`../intersection-watchdog`)
+
+Broker URL and queue name are shared the same way, via each service's own copy of
+`co.wethinkcode.trafficflow.mq.MqConfig` (`BROKER_URL`, `HEARTBEAT_QUEUE`).
 
 ## Project structure
 
@@ -27,8 +39,9 @@ common/
 
 This folder holds the broker config and notes only — the actual publish/subscribe
 code belongs in the producer/consumer services listed above (their poms already
-depend on `activemq-client`, and each already has
-`src/main/java/co/wethinkcode/trafficflow/mq/MqConfig.java`).
+depend on `activemq-client`, and each already has its own
+`src/main/java/co/wethinkcode/trafficflow/mq/MqConfig.java` with the constants for
+whichever topic/queue that service participates in).
 
 ## Build
 
@@ -62,3 +75,5 @@ watching the topic in the web console.
 - Add `activemq-client` publish logic to `congestion-service` on its stage/state-change endpoint.
 - Add `activemq-client` subscriber logic to consumer service(s) above, replacing any
   direct synchronous calls to `congestion-service`.
+- Add `activemq-client` heartbeat-publish logic to `intersection-service`.
+- Add `activemq-client` subscriber/alerting logic to `intersection-watchdog`.

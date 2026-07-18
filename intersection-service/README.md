@@ -7,12 +7,17 @@ Validates intersection/district names (source of truth).
 Part of the [TrafficFlow](../README.md) project. Independent Maven module, no
 parent pom.
 
+MQ: this service publishes to the ActiveMQ queue `intersection-heartbeat-queue` — see [`../common/`](../common). Broker URL and queue name come from the common `co.wethinkcode.trafficflow.mq.MqConfig` class alongside it in this module.
+
 ## Project structure
 
 ```
 intersection-service/
 ├── pom.xml
-└── src/main/java/co/wethinkcode/trafficflow/IntersectionServiceApp.java
+└── src/main/java/co/wethinkcode/trafficflow/
+    ├── IntersectionServiceApp.java
+    └── mq/
+        └── MqConfig.java
 ```
 
 ## Build

@@ -29,6 +29,43 @@ out for (and handle) at least:
 - **Naming/spelling variants** for the same thing (e.g. regional spelling
   differences, synonyms)
 
+## Worked example
+
+A few raw rows from `intersections-legacy.csv`, and one reasonable cleaned shape for
+them. Your field names/casing conventions don't need to match this exactly — the
+point is normalizing consistently and handling the duplicate/missing cases, not
+hitting this exact JSON.
+
+Raw:
+
+```csv
+intersection_id,District ,signal_type,active_flag
+INT-1001, Downtown ,4-way,Y
+INT-1005,Downtown,Roundabout,true
+int-1005,downtown ,ROUNDABOUT,TRUE
+INT-1007,Eastside,,1
+INT-1015,,4-way,Y
+```
+
+Cleaned:
+
+```json
+[
+  { "id": "INT-1001", "district": "Downtown", "signalType": "4-way",       "active": true },
+  { "id": "INT-1005", "district": "Downtown", "signalType": "roundabout",  "active": true },
+  { "id": "INT-1007", "district": "Eastside", "signalType": null,          "active": true },
+  { "id": "INT-1015", "district": null,       "signalType": "4-way",       "active": true }
+]
+```
+
+What happened:
+- `INT-1001`: trimmed the padded district (`" Downtown "` → `"Downtown"`); flag `Y` → `true`.
+- `INT-1005` / `int-1005`: same real-world intersection under two ID casings and two
+  signal-type casings — collapsed to a single record.
+- `INT-1007`: signal type was blank in the source — kept as an explicit `null` rather
+  than dropped or guessed, so downstream services can see it's missing.
+- `INT-1015`: same idea for a missing district.
+
 ## Project structure
 
 ```

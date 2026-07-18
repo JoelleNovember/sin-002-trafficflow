@@ -7,14 +7,17 @@ Cries for help if the Intersection Service crashes, since routes can no longer b
 Part of the [TrafficFlow](../README.md) project — its alerting service.
 Independent Maven module, no parent pom.
 
-Mechanism: ActiveMQ Queue heartbeat/dead-letter
+MQ: this service subscribes to the ActiveMQ queue `intersection-heartbeat-queue` — see [`../common/`](../common). Broker URL and queue name come from the common `co.wethinkcode.trafficflow.mq.MqConfig` class alongside it in this module. Mechanism: watch for missed heartbeats and/or dead-lettered messages from `intersection-service` and raise an alert.
 
 ## Project structure
 
 ```
 intersection-watchdog/
 ├── pom.xml
-└── src/main/java/co/wethinkcode/trafficflow/IntersectionWatchdogApp.java
+└── src/main/java/co/wethinkcode/trafficflow/
+    ├── IntersectionWatchdogApp.java
+    └── mq/
+        └── MqConfig.java
 ```
 
 ## Build

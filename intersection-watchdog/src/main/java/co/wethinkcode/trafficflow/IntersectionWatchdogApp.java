@@ -13,3 +13,7 @@ public class IntersectionWatchdogApp {
         // Mechanism: ActiveMQ Queue heartbeat/dead-letter
     }
 }
+
+// MQ TODO: subscribes to ActiveMQ queue MqConfig.HEARTBEAT_QUEUE at MqConfig.BROKER_URL
+// (see co.wethinkcode.trafficflow.mq.MqConfig) and alerts if a heartbeat from
+// intersection-service is missed or a message lands in the dead-letter queue.
