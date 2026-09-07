@@ -7,7 +7,7 @@ public class IngestionServiceApp {
 
     public static void main(String[] args) throws Exception{
         List<Intersection> cleanedRecords =
-                CsvCleaner.loadAndClean("/intersection-legacy.csv");
+                CsvCleaner.loadAndClean("/intersections-legacy.csv");
 
 
         Javalin app = Javalin.create().start(7020);
