@@ -1,10 +1,22 @@
 package co.wethinkcode.trafficflow;
 
 import io.javalin.Javalin;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class IntersectionServiceApp {
 
     public static void main(String[] args) {
+
+        Map<String, Intersection> store = new HashMap<>();
+        loadFromIngestionService(store);
         Javalin app = Javalin.create().start(7021);
 
         app.get("/health", ctx -> ctx.result("OK"));
@@ -13,9 +25,13 @@ public class IntersectionServiceApp {
         // Add domain endpoints for intersection-service here.
         app.get("/intersections/{id}", ctx -> {
             String id = ctx.pathParam("id").toUpperCase();
+
             Intersection found = store.get(id);
+
             if (found == null) {
-                ctx.status(404).json(Map.of("error", "intersection not found"));
+                ctx.status(404).json(
+                        Map.of("error", "intersection not found")
+                );
             } else {
                 ctx.json(found);
             }
@@ -44,10 +60,18 @@ public class IntersectionServiceApp {
                 store.put(record.getId(), record);
             }
 
-            System.out.println("Loaded " + records.size() + " intersections from ingestion-service.");
+            System.out.println(
+                    "Loaded " + records.size()
+                            + " intersections from ingestion-service."
+            );
+
         } catch (Exception e) {
-            System.err.println("WARNING: could not load from ingestion-service — " +
-                    "starting with an empty store. Lookups will 404 until this is fixed. Cause: " + e.getMessage());
+            System.err.println(
+                    "WARNING: could not load from ingestion-service — "
+                            + "starting with an empty store. "
+                            + "Lookups will 404 until this is fixed. "
+                            + "Cause: " + e.getMessage()
+            );
         }
     }
 
