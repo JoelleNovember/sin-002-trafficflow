@@ -1,6 +1,11 @@
 package co.wethinkcode.trafficflow;
 
+import javax.jms.*;
+
+import co.wethinkcode.trafficflow.mq.MqConfig;
 import io.javalin.Javalin;
+import org.apache.activemq.ActiveMQConnectionFactory;
+
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,8 +40,25 @@ public class CongestionServiceApp {
             }
 
             congestionLevel.set(level);
+            publishLevelChange(level);
             ctx.status(204);
         });
+    }
+    private static void publishLevelChange(int level) {
+        try {
+            ConnectionFactory factory = new ActiveMQConnectionFactory(MqConfig.BROKER_URL);
+            try (Connection conn = factory.createConnection()) {
+                conn.start();
+                Session session = conn.createSession(false, Session.AUTO_ACKNOWLEDGE);
+                Topic topic = session.createTopic(MqConfig.TOPIC);
+                MessageProducer producer = session.createProducer(topic);
+                String json = "{\"level\": " + level + "}";
+                producer.send(session.createTextMessage(json));
+                System.out.println("Published congestion level " + level + " to " + MqConfig.TOPIC);
+            }
+        } catch (JMSException e) {
+            System.err.println("WARNING: failed to publish congestion update — " + e.getMessage());
+        }
     }
 }
 
