@@ -2,18 +2,27 @@ package co.wethinkcode.trafficflow;
 
 import io.javalin.Javalin;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.activemq.ActiveMQConnectionFactory;
+import co.wethinkcode.trafficflow.mq.MqConfig;
+
+import javax.jms.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RoutingServiceApp {
 
     private static final HttpClient client = HttpClient.newHttpClient();
     private static final ObjectMapper mapper = new ObjectMapper();
+    private static final AtomicInteger congestionLevel = new AtomicInteger(0);
 
-    public static void main(String[] args) {
+
+    public static void main(String[] args) throws JMSException {
+        subscribeToCongestionTopic();
+
         Javalin app = Javalin.create().start(7023);
 
         app.get("/health", ctx -> ctx.result("OK"));
@@ -42,16 +51,9 @@ public class RoutingServiceApp {
                 return;
             }
 
-            int congestionLevel;
-            try {
-                congestionLevel = fetchCongestionLevel();
-            } catch (Exception e) {
-                ctx.status(503).json(Map.of("error", "congestion-service unavailable: " + e.getMessage()));
-                return;
-            }
-
             double baseMinutes = baseMinutesFor(fromIntersection.getSignalType());
-            double estimatedMinutes = baseMinutes * (1 + congestionLevel / 8.0);
+            int level = congestionLevel.get();
+            double estimatedMinutes = baseMinutes * (1 + level / 8.0);
 
             ctx.json(Map.of(
                     "from", fromIntersection.getId(),
@@ -60,6 +62,29 @@ public class RoutingServiceApp {
                     "estimatedMinutes", Math.round(estimatedMinutes * 10.0) / 10.0
             ));
         });
+    }
+
+    private static void subscribeToCongestionTopic() throws JMSException {
+        ConnectionFactory factory = new ActiveMQConnectionFactory(MqConfig.BROKER_URL);
+        Connection conn = factory.createConnection();
+        conn.start();
+        Session session = conn.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        Topic topic = session.createTopic(MqConfig.TOPIC);
+        MessageConsumer consumer = session.createConsumer(topic);
+
+        consumer.setMessageListener(message -> {
+            try {
+                String json = ((TextMessage) message).getText();
+                Map<?, ?> parsed = mapper.readValue(json, Map.class);
+                int level = (Integer) parsed.get("level");
+                congestionLevel.set(level);
+                System.out.println("Received congestion level update: " + level);
+            } catch (Exception e) {
+                System.err.println("WARNING: failed to process congestion message — " + e.getMessage());
+            }
+        });
+
+        System.out.println("Subscribed to " + MqConfig.TOPIC);
     }
 
     private static double baseMinutesFor(String signalType) {
@@ -89,20 +114,10 @@ public class RoutingServiceApp {
         return mapper.readValue(response.body(), Intersection.class);
     }
 
-    private static int fetchCongestionLevel() throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:7022/congestion"))
-                .GET()
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        Map<?, ?> body = mapper.readValue(response.body(), Map.class);
-        return (Integer) body.get("level");
-    }
-
     private static class NotFoundException extends Exception {
         NotFoundException(String message) { super(message); }
     }
+
 }
 
 // MQ TODO: subscribes to ActiveMQ topic MqConfig.TOPIC at MqConfig.BROKER_URL (see co.wethinkcode.trafficflow.mq.MqConfig)
