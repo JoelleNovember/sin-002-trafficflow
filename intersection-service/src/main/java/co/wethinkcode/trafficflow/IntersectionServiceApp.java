@@ -2,6 +2,10 @@ package co.wethinkcode.trafficflow;
 
 import io.javalin.Javalin;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.activemq.ActiveMQConnectionFactory;
+import co.wethinkcode.trafficflow.mq.MqConfig;
+
+import javax.jms.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -9,6 +13,9 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class IntersectionServiceApp {
 
@@ -21,8 +28,6 @@ public class IntersectionServiceApp {
 
         app.get("/health", ctx -> ctx.result("OK"));
 
-        // TODO (Validates intersection/district names (source of truth).)
-        // Add domain endpoints for intersection-service here.
         app.get("/intersections/{id}", ctx -> {
             String id = ctx.pathParam("id").toUpperCase();
             Intersection found = store.get(id);
@@ -32,6 +37,28 @@ public class IntersectionServiceApp {
                 ctx.json(found);
             }
         });
+
+        startHeartbeat();
+    }
+
+    private static void startHeartbeat() {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(IntersectionServiceApp::publishHeartbeat, 0, 5, TimeUnit.SECONDS);
+    }
+
+    private static void publishHeartbeat() {
+        try {
+            ConnectionFactory factory = new ActiveMQConnectionFactory(MqConfig.BROKER_URL);
+            try (Connection conn = factory.createConnection()) {
+                conn.start();
+                Session session = conn.createSession(false, Session.AUTO_ACKNOWLEDGE);
+                Queue queue = session.createQueue(MqConfig.HEARTBEAT_QUEUE);
+                MessageProducer producer = session.createProducer(queue);
+                producer.send(session.createTextMessage("heartbeat:" + System.currentTimeMillis()));
+            }
+        } catch (JMSException e) {
+            System.err.println("WARNING: failed to publish heartbeat — " + e.getMessage());
+        }
     }
 
     private static void loadFromIngestionService(Map<String, Intersection> store) {
@@ -62,8 +89,3 @@ public class IntersectionServiceApp {
         }
     }
 }
-
-
-
-// MQ TODO: publishes a periodic heartbeat to ActiveMQ queue MqConfig.HEARTBEAT_QUEUE at
-// MqConfig.BROKER_URL (see co.wethinkcode.trafficflow.mq.MqConfig), consumed by intersection-watchdog.
