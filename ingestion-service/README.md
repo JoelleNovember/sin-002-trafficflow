@@ -7,6 +7,17 @@ first stop in the TrafficFlow pipeline. Independent Maven module, no parent pom.
 
 Part of the [TrafficFlow](../README.md) project.
 
+## What's implemented
+- Trims whitespace and collapses double spaces in district/signal type fields
+- Normalizes casing on IDs (uppercased) and signal types (lowercased)
+- Treats blanks, `N/A`, `n/a`, `TBD`, `unknown`, `-`, `NaN` as explicit `null`
+  values (not dropped, not guessed)
+- Normalizes `active_flag` variants (`Y`/`N`, `yes`/`no`, `1`/`0`, `true`/`FALSE`)
+  to a real boolean, or `null` for unrecognized tokens like `"unknown"`
+- Collapses duplicate records for the same intersection across ID casing
+  (e.g. `INT-1005` / `int-1005`) — last write wins
+- Exposes the cleaned records via `GET /intersections`
+
 ## Known data issues
 
 `intersections-legacy.csv` is deliberately messy — cleaning it is the point of this service. Look
@@ -72,8 +83,11 @@ What happened:
 ingestion-service/
 ├── pom.xml
 └── src/main/
-    ├── java/co/wethinkcode/trafficflow/IngestionServiceApp.java
-    └── resources/intersections-legacy.csv
+├── java/co/wethinkcode/trafficflow/
+│ ├── IngestionServiceApp.java
+│ ├── CsvCleaner.java
+│ └── Intersection.java
+└── resources/intersections-legacy.csv
 ```
 
 ## Build
@@ -93,11 +107,15 @@ parsing/cleaning logic is a TODO.
 
 ## Test
 
-No automated tests yet. Manually verify it's up:
-
 ```
 curl http://localhost:7020/health   # -> OK
+curl http://localhost:7020/intersections # -> JSON array of cleaned records
 ```
+Automated tests cover the cleaning rules:
+```
+mvn test
+```
+See `src/test/java/co/wethinkcode/trafficflow/CsvCleanerTest.java`.
 
 To add real tests, add JUnit 5 + the Surefire plugin to `pom.xml`, put tests under
 `src/test/java/co/wethinkcode/trafficflow/`, and run `mvn test`.
